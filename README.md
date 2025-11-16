@@ -51,10 +51,11 @@ OPENAI_API_KEY=sk-...
 SERPAPI_API_KEY=your_serpapi_key
 
 # Optional: Alternative discovery methods (cheaper/free)
-FIRECRAWL_API_KEY=fc-your_key  # Firecrawl (500 free, $16/mo)
-GOOGLE_API_KEY=your_google_key # Google (FREE 100/day)
-GOOGLE_CSE_ID=your_cse_id      # Google CSE ID
-BING_API_KEY=your_bing_key     # Bing (FREE 1,000/mo)
+SEARXNG_URL=http://localhost:8080 # SearXNG (self-hosted, FREE unlimited!)
+FIRECRAWL_API_KEY=fc-your_key     # Firecrawl (500 free, $16/mo)
+GOOGLE_API_KEY=your_google_key    # Google (FREE 100/day)
+GOOGLE_CSE_ID=your_cse_id         # Google CSE ID
+BING_API_KEY=your_bing_key        # Bing (FREE 1,000/mo)
 ```
 
 ## Company Discovery
@@ -84,7 +85,35 @@ python enhanced_discovery.py --platform greenhouse --pages 20 --strategies 55
 - Region-based (Europe, Asia, Middle East, North America, South America)
 - Company type (startup, YC, series A/B, tech startup)
 
-### Option 2: Google Custom Search (FREE - 100/day)
+### Option 2: SearXNG Discovery (FREE - Unlimited!) ⭐
+
+Use your own self-hosted search engine with NO limits or costs:
+
+```bash
+# Setup: Follow SEARXNG_SETUP.md (10 minutes)
+# Runs on localhost or any server
+
+# Discover all platforms (unlimited queries!)
+python searxng_discovery.py --platform all --max-queries 20
+
+# Deep discovery (no cost concerns!)
+python searxng_discovery.py --platform all --max-queries 100 --pages 10
+
+# Use specific search engines
+python searxng_discovery.py --platform ashby --engines "google,duckduckgo,bing"
+```
+
+**Advantages:**
+- Completely FREE (self-hosted)
+- UNLIMITED queries (no rate limits!)
+- No API keys needed
+- Privacy-focused (you control everything)
+- Aggregates from multiple search engines
+- Can run on localhost or $5/month VPS
+
+**Cost:** $0 (localhost) or $5-10/month (VPS) - unlimited usage!
+
+### Option 3: Google Custom Search (FREE - 100/day)
 
 Use Google's free tier API (3,000 queries/month):
 
@@ -100,7 +129,7 @@ python google_custom_search.py --platform ashby --max-queries 100
 
 **Cost:** FREE for first 100 queries/day, then $5 per 1,000 queries
 
-### Option 3: Firecrawl Discovery (SERP Alternative)
+### Option 4: Firecrawl Discovery (SERP Alternative)
 
 Use Firecrawl's search endpoint as an alternative to SERP API:
 
@@ -121,7 +150,7 @@ python firecrawl_discovery.py --platform ashby --max-queries 20
 - 500 free credits to start (no credit card)
 - 2 credits per 10 search results
 
-### Option 4: Optimized Discovery (Minimal Cost)
+### Option 5: Optimized Discovery (Minimal Cost)
 
 Minimize SERP API costs with query caching and smart strategies:
 
@@ -211,6 +240,7 @@ data/
 │   ├── lever.py                   # Lever models
 │   └── workable.py                # Workable models
 ├── enhanced_discovery.py           # 55+ search strategies (recommended)
+├── searxng_discovery.py            # SearXNG self-hosted search (FREE unlimited!)
 ├── firecrawl_discovery.py          # Firecrawl search API (SERP alternative)
 ├── google_custom_search.py         # Free Google API discovery
 ├── optimized_serp_discovery.py     # Cost-optimized SERP discovery
@@ -219,6 +249,7 @@ data/
 
 ## Documentation
 
+- **[SEARXNG_SETUP.md](SEARXNG_SETUP.md)** - Complete guide to setting up SearXNG (self-hosted search)
 - **[DISCOVERY_QUICK_START.md](DISCOVERY_QUICK_START.md)** - Quick reference for company discovery
 - **[SERP_ALTERNATIVES.md](SERP_ALTERNATIVES.md)** - Comparison of SERP API providers and costs
 - **[IMPROVEMENTS.md](IMPROVEMENTS.md)** - Code quality improvements and recommendations
@@ -228,6 +259,7 @@ data/
 | Method | Cost | Companies Found | Setup Time |
 |--------|------|----------------|------------|
 | **Enhanced Discovery** | $5-20/run | 500-2,000 | 0 min |
+| **SearXNG Discovery** ⭐ | $0 (unlimited!) | 500-2,000 | 10 min |
 | **Firecrawl Discovery** | $0-3/run | 300-800 | 5 min |
 | **Google Custom Search** | FREE (100/day) | 500-1,000 | 5 min |
 | **Optimized Discovery** | $2-5/run | 500-1,000 | 0 min |
@@ -272,7 +304,7 @@ Visit YC directory, BuiltIn, etc.
 - **SQLAlchemy** - Database ORM
 - **PostgreSQL** - Data storage
 - **OpenAI API** - Text embeddings for semantic search
-- **SERP API / Google Custom Search / Firecrawl** - Company discovery
+- **SERP API / SearXNG / Google Custom Search / Firecrawl** - Company discovery
 - **pandas** - Data processing
 - **BeautifulSoup** - HTML parsing (if needed)
 
@@ -283,6 +315,7 @@ Visit YC directory, BuiltIn, etc.
 | `DATABASE_URL` | For job processing | PostgreSQL connection string |
 | `OPENAI_API_KEY` | For embeddings | OpenAI API key for semantic search |
 | `SERPAPI_API_KEY` | For discovery | SerpAPI key for company discovery |
+| `SEARXNG_URL` | Optional | SearXNG instance URL (self-hosted, FREE unlimited) |
 | `FIRECRAWL_API_KEY` | Optional | Firecrawl API (500 free credits, $16/mo) |
 | `GOOGLE_API_KEY` | Optional | Google Custom Search API (FREE tier) |
 | `GOOGLE_CSE_ID` | Optional | Custom Search Engine ID |
