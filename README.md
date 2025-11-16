@@ -60,7 +60,9 @@ BING_API_KEY=your_bing_key        # Bing (FREE 1,000/mo)
 
 **NEW!** Unified pipeline to run the full workflow with configurable steps.
 
-**Default behavior:** Scraping + CSV Consolidation + Export (skips discovery and DB processing)
+**Default behavior:** Scraping + CSV Consolidation (skips discovery, CSV export, and DB processing)
+
+Note: The orchestrator's consolidation step reads directly from JSON files in `companies/` directories. The individual `export_to_csv.py` scripts create platform-specific CSV files for standalone use.
 
 ### Quick Start
 
@@ -78,10 +80,10 @@ python orchestrator/pipeline.py --discovery-only --discovery-method searxng --ma
 ### Pipeline Steps
 
 1. **Discovery** - Find companies using search APIs (SearXNG, Google CSE, Firecrawl, SERP API)
-2. **Scraping** - Fetch jobs from each company via ATS APIs
-3. **CSV Consolidation** - Create simplified `all_jobs.csv` (url, title, location, company)
-4. **DB Processing** - Save to PostgreSQL with embeddings (Ashby only currently)
-5. **Export** - Export final data
+2. **Scraping** - Fetch jobs from each company via ATS APIs (saves to `companies/` directory as JSON files)
+3. **CSV Export** - Each platform exports jobs from JSON files to `jobs.csv` (url, title, location, company)
+4. **CSV Consolidation** - Create simplified `all_jobs.csv` from all platform CSV files
+5. **DB Processing** - Save to PostgreSQL with embeddings (Ashby only currently)
 
 ### Benefits
 
@@ -228,53 +230,81 @@ Scrape job postings from discovered companies:
 ```bash
 # Ashby (includes database processing with embeddings)
 cd ashby
-python main.py
+python main.py  # Scrapes jobs to companies/ directory as JSON files
+python export_to_csv.py  # Exports jobs from JSON to jobs.csv
 python process_ashby.py  # Process to database with OpenAI embeddings
 
 # Greenhouse
 cd greenhouse
-python main.py
+python main.py  # Scrapes jobs to companies/ directory as JSON files
+python export_to_csv.py  # Exports jobs from JSON to jobs.csv
 
 # Lever
 cd lever
-python main.py
+python main.py  # Scrapes jobs to companies/ directory as JSON files
+python export_to_csv.py  # Exports jobs from JSON to jobs.csv
 
 # Workable
 cd workable
-python main.py
+python main.py  # Scrapes jobs to companies/ directory as JSON files
+python export_to_csv.py  # Exports jobs from JSON to jobs.csv
 ```
+
+### Export to CSV
+
+Each platform has an `export_to_csv.py` script that:
+- Reads job data from JSON files in the `companies/` directory
+- Exports a simplified CSV (`jobs.csv`) with columns: `url`, `title`, `location`, `company`
+- Handles missing directories gracefully (won't crash if scraping hasn't run yet)
+- Can be run independently after scraping for platform-specific exports
+
+**Note:** The orchestrator uses `consolidate_jobs.py` which reads directly from JSON files and creates a unified `all_jobs.csv`. The individual `export_to_csv.py` scripts are useful for:
+- Quick platform-specific exports
+- Debugging individual platforms
+- Standalone workflows without the orchestrator
 
 ## Project Structure
 
 ```
 data/
-├── ashby/                          # Ashby platform (816 companies)
-│   ├── main.py                    # Job scraper
+├── ashby/                          # Ashby platform
+│   ├── main.py                    # Job scraper (saves to companies/ as JSON)
+│   ├── export_to_csv.py           # Exports jobs from JSON to jobs.csv
 │   ├── process_ashby.py           # Database processor with embeddings
-│   ├── serp.py                    # Company discovery
-│   ├── extract_companies_ashby.py # Company extraction
-│   └── companies.csv              # Company list
-├── greenhouse/                     # Greenhouse platform (310 companies)
-│   ├── main.py                    # Job scraper
-│   ├── serp.py                    # Company discovery
-│   └── greenhouse_companies.csv   # Company list
-├── lever/                          # Lever platform (444 companies)
-│   ├── main.py                    # Job scraper
-│   ├── serp.py                    # Company discovery
-│   └── lever_companies.csv        # Company list
-├── workable/                       # Workable platform (218 companies)
-│   ├── main.py                    # Job scraper
-│   ├── serp.py                    # Company discovery
-│   └── workable_companies.csv     # Company list
+│   ├── companies/                 # JSON files (one per company)
+│   │   └── company-name.json      # Job data for each company
+│   ├── jobs.csv                   # Exported CSV (url, title, location, company)
+│   └── companies.csv              # Company URL list for scraping
+├── greenhouse/                     # Greenhouse platform
+│   ├── main.py                    # Job scraper (saves to companies/ as JSON)
+│   ├── export_to_csv.py           # Exports jobs from JSON to jobs.csv
+│   ├── companies/                 # JSON files (one per company)
+│   ├── jobs.csv                   # Exported CSV
+│   └── greenhouse_companies.csv   # Company URL list
+├── lever/                          # Lever platform
+│   ├── main.py                    # Job scraper (saves to companies/ as JSON)
+│   ├── export_to_csv.py           # Exports jobs from JSON to jobs.csv
+│   ├── companies/                 # JSON files (one per company)
+│   ├── jobs.csv                   # Exported CSV
+│   └── lever_companies.csv        # Company URL list
+├── workable/                       # Workable platform
+│   ├── main.py                    # Job scraper (saves to companies/ as JSON)
+│   ├── export_to_csv.py           # Exports jobs from JSON to jobs.csv
+│   ├── companies/                 # JSON files (one per company)
+│   ├── jobs.csv                   # Exported CSV
+│   └── workable_companies.csv     # Company URL list
 ├── rippling/                       # Rippling platform (coming soon)
-│   └── rippling.txt               # URL collection
+│   └── rippling_companies.csv     # URL collection
+├── classifier/                     # Job classification tools
+│   ├── main.py                    # Classification logic
+│   └── eu.csv                     # EU-specific classifications
 ├── models/                         # Pydantic data models
 │   ├── db.py                      # Database models
 │   ├── ashby.py                   # Ashby API models
 │   ├── gh.py                      # Greenhouse models
 │   ├── lever.py                   # Lever models
 │   └── workable.py                # Workable models
-├── orchestrator/                   # Pipeline orchestrator (NEW!)
+├── orchestrator/                   # Pipeline orchestrator
 │   ├── __init__.py                # Package init
 │   ├── config.py                  # Pipeline configuration
 │   ├── pipeline.py                # Main orchestrator
@@ -285,8 +315,17 @@ data/
 ├── firecrawl_discovery.py          # Firecrawl search API (SERP alternative)
 ├── google_custom_search.py         # Free Google API discovery
 ├── optimized_serp_discovery.py     # Cost-optimized SERP discovery
-└── alternative_discovery.py        # Alternative discovery methods
+├── gather_jobs.py                  # Job gathering utilities
+├── discovery.py                    # Discovery utilities
+├── full_pipeline.sh                # Shell script for full pipeline
+└── jobs.csv                        # Consolidated jobs CSV (root level)
 ```
+
+### Key Directories
+
+- **`companies/`** - Each platform has a `companies/` directory containing JSON files (one per company) with raw job data scraped from the ATS API
+- **`jobs.csv`** - Each platform exports a simplified CSV with columns: `url`, `title`, `location`, `company`
+- **Company CSV files** - Lists of company URLs (e.g., `companies.csv`, `greenhouse_companies.csv`) used as input for scraping
 
 ## Documentation
 
