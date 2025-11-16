@@ -9,6 +9,9 @@ import re
 import os
 from typing import Set, List, Tuple
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Platform configurations
 PLATFORMS = {
@@ -60,17 +63,55 @@ SEARCH_STRATEGIES = [
     lambda domain: f"site:{domain} designer",
     lambda domain: f"site:{domain} sales",
     lambda domain: f"site:{domain} marketing",
+    lambda domain: f"site:{domain} \"engineering\"",
+    lambda domain: f"site:{domain} \"product\"",
+    lambda domain: f"site:{domain} \"data\"",
+    lambda domain: f"site:{domain} \"design\"",
+    lambda domain: f"site:{domain} \"sales\"",
+    lambda domain: f"site:{domain} \"marketing\"",
 
     # Remote/location searches
     lambda domain: f"site:{domain} remote",
     lambda domain: f"site:{domain} \"San Francisco\"",
     lambda domain: f"site:{domain} \"New York\"",
     lambda domain: f"site:{domain} \"London\"",
+    lambda domain: f"site:{domain} \"Paris\"",
+    lambda domain: f"site:{domain} \"Berlin\"",
+    lambda domain: f"site:{domain} \"Amsterdam\"",
+    lambda domain: f"site:{domain} \"Stockholm\"",
+    lambda domain: f"site:{domain} \"Warsaw\"",
+    lambda domain: f"site:{domain} \"Brussels\"",
+    lambda domain: f"site:{domain} \"Zurich\"",
+    lambda domain: f"site:{domain} \"Delhi\"",
+    lambda domain: f"site:{domain} \"Mumbai\"",
+    lambda domain: f"site:{domain} \"Bangalore\"",
+    lambda domain: f"site:{domain} \"Chennai\"",
+    lambda domain: f"site:{domain} \"Hyderabad\"",
+    lambda domain: f"site:{domain} \"Pune\"",
+    lambda domain: f"site:{domain} \"Kolkata\"",
+    lambda domain: f"site:{domain} \"Jaipur\"",
+    lambda domain: f"site:{domain} \"Singapore\"",
+    lambda domain: f"site:{domain} \"Dubai\"",
+    lambda domain: f"site:{domain} \"Tokyo\"",
+    lambda domain: f"site:{domain} \"Seoul\"",
+    lambda domain: f"site:{domain} \"Hong Kong\"",
+    lambda domain: f"site:{domain} \"Toronto\"",
+    lambda domain: f"site:{domain} \"Montreal\"",
+    lambda domain: f"site:{domain} \"Vancouver\"",
+    lambda domain: f"site:{domain} \"Sydney\"",
+
+    lambda domain: f"site:{domain} \"Europe\"",
+    lambda domain: f"site:{domain} \"Asia\"",
+    lambda domain: f"site:{domain} \"Middle East\"",
+    lambda domain: f"site:{domain} \"North America\"",
+    lambda domain: f"site:{domain} \"South America\"",
 
     # Company type searches
     lambda domain: f"site:{domain} startup",
     lambda domain: f"site:{domain} YC OR \"Y Combinator\"",
     lambda domain: f"site:{domain} series A OR series B",
+    lambda domain: f"site:{domain} \"tech startup\"",
+    lambda domain: f"site:{domain} \"tech company\"",
 ]
 
 
@@ -285,7 +326,7 @@ if __name__ == "__main__":
         "--strategies",
         type=int,
         default=5,
-        help="Max number of search strategies to use (default: 5, max: 17)"
+        help="Max number of search strategies to use (default: 5, max: 55)"
     )
 
     args = parser.parse_args()
