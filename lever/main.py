@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 import argparse
 
 
-
 def extract_company_slug(url: str) -> str:
     """Extract company slug from Lever job board URL"""
     parsed = urlparse(url)
@@ -66,10 +65,12 @@ async def scrape_all_lever_jobs(force: bool = False):
     if os.path.exists(last_run_path):
         with open(last_run_path, "r") as f:
             last_run = datetime.strptime(f.read(), "%Y-%m-%d")
-    with open(last_run_path, "w") as f:
-        f.write(datetime.now().strftime("%Y-%m-%d"))
 
-    if last_run is not None and last_run > datetime.now() - timedelta(days=1) and not force:
+    if (
+        last_run is not None
+        and last_run > datetime.now() - timedelta(days=1)
+        and not force
+    ):
         # Check if all companies have been scraped in the last 24 hours
         # Number of companies in the csv should be equal to the number of companies in the companies folder
         with open(csv_path, "r") as f:
@@ -80,14 +81,20 @@ async def scrape_all_lever_jobs(force: bool = False):
             print("All companies have been scraped in the last 24 hours, skipping...")
             return script_dir
         else:
-            print("Not all companies have been scraped in the last 24 hours, scraping...")
+            print(
+                "Not all companies have been scraped in the last 24 hours, scraping..."
+            )
             count = 0
             successful_companies = 0
             failed_companies = 0
             for company in companies:
                 company_slug = extract_company_slug(company[0])
-                if not os.path.exists(os.path.join(script_dir, "companies", f"{company_slug}.json")):
-                    print(f"Company {company_slug} has not been scraped in the last 24 hours, scraping...")
+                if not os.path.exists(
+                    os.path.join(script_dir, "companies", f"{company_slug}.json")
+                ):
+                    print(
+                        f"Company {company_slug} has not been scraped in the last 24 hours, scraping..."
+                    )
                     result, num_jobs = await scrape_lever_jobs(company_slug)
                     if result is not None:
                         count += num_jobs
@@ -95,7 +102,12 @@ async def scrape_all_lever_jobs(force: bool = False):
                     else:
                         failed_companies += 1
                         print(f"Failed to scrape {company_slug}")
-            print(f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)")
+            print(
+                f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)"
+            )
+            # Update last_run.txt only after successful scraping
+            with open(last_run_path, "w") as f:
+                f.write(datetime.now().strftime("%Y-%m-%d"))
             return script_dir
 
     count = 0
@@ -128,12 +140,22 @@ async def scrape_all_lever_jobs(force: bool = False):
     print(
         f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)"
     )
+    # Update last_run.txt only after successful scraping
+    with open(last_run_path, "w") as f:
+        f.write(datetime.now().strftime("%Y-%m-%d"))
+    return script_dir
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Lever job scraper")
-    parser.add_argument("--force", action="store_true", help="Force re-scrape all companies")
-    parser.add_argument("company_slug", nargs="?", help="Company slug to scrape (optional, scrapes all if not provided)")
+    parser.add_argument(
+        "--force", action="store_true", help="Force re-scrape all companies"
+    )
+    parser.add_argument(
+        "company_slug",
+        nargs="?",
+        help="Company slug to scrape (optional, scrapes all if not provided)",
+    )
     args = parser.parse_args()
 
     if args.company_slug:

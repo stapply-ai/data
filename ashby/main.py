@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+
 # Use this proxy for all HTTP requests
 PROXY_URL = "http://core-residential.evomi.com:1000"
 PROXY_AUTH = aiohttp.BasicAuth("kalilbouz0", "KpJTWgxfN9tqIe52xIsD")
@@ -43,7 +44,7 @@ async def scrape_ashby_jobs(company_slug: str):
     connector = aiohttp.TCPConnector(ssl=False)
     async with aiohttp.ClientSession(connector=connector) as session:
         async with session.get(url, proxy=PROXY_URL, proxy_auth=PROXY_AUTH) as response:
-        # async with session.get(url) as response:
+            # async with session.get(url) as response:
             if response.status == 404:
                 print(f"Company '{company_slug}' not found (404)")
                 return None, 0
@@ -73,11 +74,12 @@ async def scrape_all_ashby_jobs(force: bool = False):
     if os.path.exists(last_run_path):
         with open(last_run_path, "r") as f:
             last_run = datetime.strptime(f.read(), "%Y-%m-%d")
-    with open(last_run_path, "w") as f:
-        f.write(datetime.now().strftime("%Y-%m-%d"))
 
-
-    if last_run is not None and last_run > datetime.now() - timedelta(days=1) and not force:
+    if (
+        last_run is not None
+        and last_run > datetime.now() - timedelta(days=1)
+        and not force
+    ):
         # Check if all companies have been scraped in the last 24 hours
         # Number of companies in the csv should be equal to the number of companies in the companies folder
         with open(csv_path, "r") as f:
@@ -86,16 +88,22 @@ async def scrape_all_ashby_jobs(force: bool = False):
             companies = list(reader)
         if len(companies) == len(os.listdir(os.path.join(script_dir, "companies"))):
             print("All companies have been scraped in the last 24 hours, skipping...")
-            return script_dir   
+            return script_dir
         else:
-            print("Not all companies have been scraped in the last 24 hours, scraping...")
+            print(
+                "Not all companies have been scraped in the last 24 hours, scraping..."
+            )
             count = 0
             successful_companies = 0
             failed_companies = 0
             for company in companies:
                 company_slug = extract_company_slug(company[0])
-                if not os.path.exists(os.path.join(script_dir, "companies", f"{company_slug}.json")):
-                    print(f"Company {company_slug} has not been scraped in the last 24 hours, scraping...")
+                if not os.path.exists(
+                    os.path.join(script_dir, "companies", f"{company_slug}.json")
+                ):
+                    print(
+                        f"Company {company_slug} has not been scraped in the last 24 hours, scraping..."
+                    )
                     result, num_jobs = await scrape_ashby_jobs(company_slug)
                     if result is not None:
                         count += num_jobs
@@ -103,7 +111,12 @@ async def scrape_all_ashby_jobs(force: bool = False):
                     else:
                         failed_companies += 1
                         print(f"Failed to scrape {company_slug}")
-            print(f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)")
+            print(
+                f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)"
+            )
+            # Update last_run.txt only after successful scraping
+            with open(last_run_path, "w") as f:
+                f.write(datetime.now().strftime("%Y-%m-%d"))
             return script_dir
 
     count = 0
@@ -135,6 +148,9 @@ async def scrape_all_ashby_jobs(force: bool = False):
     print(
         f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)"
     )
+    # Update last_run.txt only after successful scraping
+    with open(last_run_path, "w") as f:
+        f.write(datetime.now().strftime("%Y-%m-%d"))
     return script_dir
 
 
