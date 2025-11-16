@@ -31,29 +31,29 @@ PLATFORMS = {
         "domains": ["jobs.ashbyhq.com"],
         "pattern": r"(https://jobs\.ashbyhq\.com/[^/?#]+)",
         "csv_column": "ashby_url",
-        "output_file": "ashby/companies.csv"
+        "output_file": "ashby/companies.csv",
     },
     "greenhouse": {
         "domains": ["job-boards.greenhouse.io", "boards.greenhouse.io"],
         "pattern": r"(https://(?:job-boards|boards)\.greenhouse\.io/[^/?#]+)",
         "csv_column": "greenhouse_url",
-        "output_file": "greenhouse/greenhouse_companies.csv"
+        "output_file": "greenhouse/greenhouse_companies.csv",
     },
     "lever": {
         "domains": ["jobs.lever.co"],
         "pattern": r"(https://jobs\.lever\.co/[^/?#]+)",
         "csv_column": "lever_url",
-        "output_file": "lever/lever_companies.csv"
+        "output_file": "lever/lever_companies.csv",
     },
     "workable": {
         "domains": ["apply.workable.com", "jobs.workable.com"],
         "pattern": [
             r"(https://apply\.workable\.com/[^/?#]+)",
-            r"(https://jobs\.workable\.com/company/[^/?#]+/[^/?#]+)"
+            r"(https://jobs\.workable\.com/company/[^/?#]+/[^/?#]+)",
         ],
         "csv_column": "workable_url",
-        "output_file": "workable/workable_companies.csv"
-    }
+        "output_file": "workable/workable_companies.csv",
+    },
 }
 
 # Search query strategies
@@ -63,20 +63,17 @@ SEARCH_STRATEGIES = [
     lambda domain: f"site:{domain} careers",
     lambda domain: f"site:{domain} jobs",
     lambda domain: f"site:{domain} hiring",
-
     # Role-based
     lambda domain: f"site:{domain} software engineer",
     lambda domain: f"site:{domain} product manager",
     lambda domain: f"site:{domain} designer",
     lambda domain: f"site:{domain} remote",
-
     # Location-based (top cities)
     lambda domain: f"site:{domain} San Francisco",
     lambda domain: f"site:{domain} New York",
     lambda domain: f"site:{domain} London",
     lambda domain: f"site:{domain} Berlin",
     lambda domain: f"site:{domain} Singapore",
-
     # Company type
     lambda domain: f"site:{domain} startup",
     lambda domain: f"site:{domain} YC",
@@ -94,13 +91,17 @@ def read_existing_urls(csv_file: str, column_name: str) -> Set[str]:
                 print(f"📖 Found {len(existing_urls)} existing URLs in {csv_file}")
             elif "url" in df.columns:
                 existing_urls = set(df["url"].dropna().tolist())
-                print(f"📖 Found {len(existing_urls)} existing URLs in {csv_file} (legacy format)")
+                print(
+                    f"📖 Found {len(existing_urls)} existing URLs in {csv_file} (legacy format)"
+                )
         except Exception as e:
             print(f"⚠️  Error reading {csv_file}: {e}")
     return existing_urls
 
 
-def extract_urls_from_results(results: List[dict], pattern: str | List[str], domains: List[str]) -> Set[str]:
+def extract_urls_from_results(
+    results: List[dict], pattern: str | List[str], domains: List[str]
+) -> Set[str]:
     """Extract company URLs from Firecrawl search results"""
     urls = set()
 
@@ -108,7 +109,13 @@ def extract_urls_from_results(results: List[dict], pattern: str | List[str], dom
         return urls
 
     for result in results:
-        url = result.get('url', '')
+        # Handle both dict and SearchResultWeb objects
+        if hasattr(result, "url"):
+            url = result.url
+        elif isinstance(result, dict):
+            url = result.get("url", "")
+        else:
+            continue
 
         if not url:
             continue
@@ -130,9 +137,7 @@ def extract_urls_from_results(results: List[dict], pattern: str | List[str], dom
 
 
 def discover_platform(
-    platform_name: str,
-    max_queries: int = 15,
-    limit_per_query: int = 10
+    platform_name: str, max_queries: int = 15, limit_per_query: int = 10
 ):
     """
     Discover companies using Firecrawl search endpoint
@@ -196,24 +201,30 @@ def discover_platform(
         try:
             # Firecrawl search (no scraping, just get URLs)
             # Cost: 2 credits per 10 results
-            search_result = app.search(
-                query=query,
-                limit=limit_per_query
-            )
+            search_result = app.search(query=query)
+
+            print(search_result)
 
             queries_used += 1
             credits_for_query = 2  # 2 credits per 10 results
             total_credits_used += credits_for_query
 
-            # Extract results
-            results = search_result.get('data', [])
+            # Extract results from SearchData object
+            # Firecrawl returns SearchData with 'web' attribute containing list of SearchResultWeb
+            results = (
+                search_result.web
+                if hasattr(search_result, "web") and search_result.web
+                else []
+            )
 
             if not results:
                 print(f"  No results found")
                 continue
 
             # Extract URLs
-            query_urls = extract_urls_from_results(results, config["pattern"], config["domains"])
+            query_urls = extract_urls_from_results(
+                results, config["pattern"], config["domains"]
+            )
 
             new_in_query = query_urls - all_urls
             all_urls.update(query_urls)
@@ -222,7 +233,7 @@ def discover_platform(
             print(f"  Credits used: {credits_for_query} (Total: {total_credits_used})")
 
             # Small delay to be respectful
-            time.sleep(0.5)
+            time.sleep(10)
 
         except Exception as e:
             print(f"  ⚠️  Error: {e}")
@@ -286,19 +297,16 @@ if __name__ == "__main__":
         "--platform",
         choices=list(PLATFORMS.keys()) + ["all"],
         default="all",
-        help="Platform to discover (default: all)"
+        help="Platform to discover (default: all)",
     )
     parser.add_argument(
         "--max-queries",
         type=int,
         default=15,
-        help="Maximum queries to use (default: 15)"
+        help="Maximum queries to use (default: 15)",
     )
     parser.add_argument(
-        "--limit",
-        type=int,
-        default=10,
-        help="Results per query (default: 10)"
+        "--limit", type=int, default=10, help="Results per query (default: 10)"
     )
 
     args = parser.parse_args()
@@ -307,7 +315,5 @@ if __name__ == "__main__":
         discover_all_platforms(max_queries_per_platform=args.max_queries)
     else:
         discover_platform(
-            args.platform,
-            max_queries=args.max_queries,
-            limit_per_query=args.limit
+            args.platform, max_queries=args.max_queries, limit_per_query=args.limit
         )
