@@ -8,13 +8,11 @@ The aggregated job data is available at: **https://storage.stapply.ai/jobs.csv**
 
 ## Supported Platforms
 
-- **Ashby** - 816 companies tracked
-- **Greenhouse** - 310 companies tracked
-- **Lever** - 444 companies tracked
-- **Workable** - 218 companies tracked
+- **Ashby** 
+- **Greenhouse** 
+- **Lever** 
+- **Workable**
 - **Rippling** - Coming soon
-
-**Total: 1,788 companies** across all platforms
 
 ## Quick Start
 
