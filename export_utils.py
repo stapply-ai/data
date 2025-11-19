@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 from datetime import datetime
+import shutil
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 from urllib.parse import urlparse
@@ -148,6 +149,8 @@ def write_jobs_csv(jobs_csv_path: Path, rows: List[Dict[str, str]]) -> Path | No
     previous_rows: List[Dict[str, str]] = []
 
     if jobs_csv_path.exists():
+        backup_path = jobs_csv_path.with_name(f"{jobs_csv_path.stem}_old{jobs_csv_path.suffix}")
+        shutil.copy2(jobs_csv_path, backup_path)
         with open(jobs_csv_path, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             previous_rows = list(reader)
