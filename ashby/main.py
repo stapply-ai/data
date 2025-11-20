@@ -31,40 +31,53 @@ def extract_company_slug(url: str) -> str:
     return path
 
 
-def load_checkpoint(path: str) -> dict:
-    if not os.path.exists(path):
-        return {}
+def load_company_data(file_path: str) -> dict | None:
+    """Load company data from JSON file"""
+    if not os.path.exists(file_path):
+        return None
     try:
-        with open(path, "r") as f:
+        with open(file_path, "r") as f:
             return json.load(f)
     except (OSError, json.JSONDecodeError):
-        return {}
+        return None
 
 
-def write_checkpoint(
-    path: str,
-    *,
-    last_run: datetime,
-    last_company: str | None,
-    force: bool,
-    total_jobs: int,
-    success: bool,
-) -> None:
-    payload = {
-        "last_run": last_run.isoformat(),
-        "last_company": last_company,
-        "force": force,
-        "total_jobs": total_jobs,
-        "success": success,
-    }
-    with open(path, "w") as f:
-        json.dump(payload, f, indent=2)
+def should_scrape_company(
+    company_data: dict | None, force: bool = False
+) -> tuple[bool, float | None]:
+    """
+    Determine if we should scrape a company based on last_scraped timestamp.
+    Returns (should_scrape, hours_since_last_scrape)
+    """
+    if force:
+        return True, None
+
+    if company_data is None:
+        return True, None
+
+    last_scraped_str = company_data.get("last_scraped")
+    if not last_scraped_str:
+        return True, None
+
+    try:
+        last_scraped = datetime.fromisoformat(last_scraped_str)
+        hours_elapsed = (datetime.now() - last_scraped).total_seconds() / 3600
+
+        # Scrape if more than 12 hours old
+        should_scrape = hours_elapsed >= 12
+        return should_scrape, hours_elapsed
+    except (ValueError, TypeError):
+        return True, None
 
 
-async def scrape_ashby_jobs(company_slug: str):
-    url = f"https://api.ashbyhq.com/posting-api/job-board/{company_slug}?includeCompensation=true"
-    print(f"Fetching fresh data from {url}...")
+def save_company_data(file_path: str, api_data: dict) -> None:
+    """Save company data with last_scraped timestamp"""
+    api_data["last_scraped"] = datetime.now().isoformat()
+    with open(file_path, "w") as f:
+        json.dump(api_data, f, indent=2)
 
+
+async def scrape_ashby_jobs(company_slug: str, force: bool = False):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     companies_dir = os.path.join(script_dir, "companies")
 
@@ -72,6 +85,31 @@ async def scrape_ashby_jobs(company_slug: str):
         os.makedirs(companies_dir)
 
     file_path = os.path.join(companies_dir, f"{company_slug}.json")
+
+    # Check if we should scrape this company
+    company_data = load_company_data(file_path)
+    should_scrape, hours_elapsed = should_scrape_company(company_data, force)
+
+    if not should_scrape:
+        print(
+            f"Scraped {company_slug} {hours_elapsed:.1f} hours ago. I will not scrape again."
+        )
+        # Return existing data info with skipped flag
+        num_jobs = len(company_data.get("jobs", []))
+        return file_path, num_jobs, False  # False = not scraped (skipped)
+
+    # Log decision to scrape
+    if hours_elapsed is not None:
+        print(
+            f"Scraped {company_slug} {hours_elapsed:.1f} hours ago. I will scrape again."
+        )
+    elif company_data is None:
+        print(f"Company '{company_slug}' data file does not exist. I will scrape.")
+    else:
+        print(f"Company '{company_slug}' has no last_scraped field. I will scrape.")
+
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{company_slug}?includeCompensation=true"
+    print(f"Fetching fresh data from {url}...")
 
     connector = aiohttp.TCPConnector(ssl=False)
     async with aiohttp.ClientSession(connector=connector) as session:
@@ -83,22 +121,22 @@ async def scrape_ashby_jobs(company_slug: str):
                 ) as response:
                     if response.status == 404:
                         print(f"Company '{company_slug}' not found (404)")
-                        return None, 0
+                        return None, 0, False
 
                     if response.status != 200:
                         print(f"Error {response.status} for company '{company_slug}'")
-                        return None, 0
+                        return None, 0, False
 
                     try:
                         data = await response.json()
                     except aiohttp.client_exceptions.ContentTypeError as e:
                         print(f"Failed to parse JSON for company '{company_slug}': {e}")
-                        return None, 0
+                        return None, 0, False
 
-                    with open(file_path, "w") as f:
-                        json.dump(data, f)
+                    # Save with last_scraped timestamp
+                    save_company_data(file_path, data)
 
-                    return file_path, len(data.get("jobs", []))
+                    return file_path, len(data.get("jobs", [])), True  # True = scraped
             except (
                 aiohttp.client_exceptions.ClientPayloadError,
                 aiohttp.ClientError,
@@ -108,7 +146,7 @@ async def scrape_ashby_jobs(company_slug: str):
                     print(
                         f"Exceeded retries for '{company_slug}' due to network error: {err}"
                     )
-                    return None, 0
+                    return None, 0, False
                 delay = BASE_RETRY_DELAY * attempt + random.uniform(0, 1)
                 print(
                     f"Request failed for '{company_slug}' ({err}). Retrying in {delay:.1f}s..."
@@ -121,86 +159,42 @@ async def scrape_all_ashby_jobs(force: bool = False):
     # Get the directory where this script is located
     script_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(script_dir, "companies.csv")
-    checkpoint_path = os.path.join(script_dir, "checkpoint.json")
-    checkpoint = load_checkpoint(checkpoint_path)
-    last_run = None
-    if "last_run" in checkpoint:
-        try:
-            last_run = datetime.fromisoformat(checkpoint["last_run"])
-        except ValueError:
-            last_run = None
-
-    resume_company: str | None = None
-    recent_run = last_run is not None and last_run > datetime.now() - timedelta(days=1)
-    if recent_run and not force:
-        if checkpoint.get("success"):
-            print(
-                "All companies were scraped in the last 24 hours. Use --force to override."
-            )
-            return script_dir
-        resume_company = checkpoint.get("last_company")
-        if resume_company:
-            print(f"Resuming scrape starting after '{resume_company}'")
-        else:
-            print("Resuming scrape from the beginning (no last company recorded)")
 
     count = 0
     successful_companies = 0
     failed_companies = 0
-    last_company = None
+    skipped_companies = 0
 
     with open(csv_path, "r") as f:
         reader = csv.reader(f)
         next(reader)  # Skip header row
         companies = [row for row in reader if row]
 
-    start_index = 0
-    if resume_company:
-        for idx, row in enumerate(companies):
-            if extract_company_slug(row[0]) == resume_company:
-                start_index = idx + 1
-                break
-        else:
-            print(
-                f"Resume company '{resume_company}' not found in CSV. Starting from beginning."
-            )
-            start_index = 0
+    print(f"Processing {len(companies)} companies...")
 
-    for row in companies[start_index:]:
+    for row in companies:
         company_url = row[0]
         company_slug = extract_company_slug(company_url)
-        last_company = company_slug
 
-        print(f"Processing company: {company_slug}")
-        result, num_jobs = await scrape_ashby_jobs(company_slug)
+        print(f"\nProcessing company: {company_slug}")
+        result, num_jobs, was_scraped = await scrape_ashby_jobs(company_slug, force)
 
         if result is not None:
             count += num_jobs
-            successful_companies += 1
-            print(f"Successfully scraped {num_jobs} jobs from {company_slug}")
+            if was_scraped:
+                successful_companies += 1
+                print(f"Successfully scraped {num_jobs} jobs from {company_slug}")
+            else:
+                skipped_companies += 1
         else:
             failed_companies += 1
             print(f"Failed to scrape {company_slug}")
-        write_checkpoint(
-            checkpoint_path,
-            last_run=datetime.now(),
-            last_company=last_company,
-            force=force,
-            total_jobs=count,
-            success=False,
-        )
+
         await asyncio.sleep(random.uniform(MIN_SCRAPE_DELAY, MAX_SCRAPE_DELAY))
 
     print(
-        f"Done! Scraped {count} total jobs from {successful_companies} companies ({failed_companies} failed)"
-    )
-    write_checkpoint(
-        checkpoint_path,
-        last_run=datetime.now(),
-        last_company=last_company,
-        force=force,
-        total_jobs=count,
-        success=failed_companies == 0,
+        f"\nDone! Processed {count} total jobs from {successful_companies} companies "
+        f"({skipped_companies} skipped, {failed_companies} failed)"
     )
     return script_dir
 
